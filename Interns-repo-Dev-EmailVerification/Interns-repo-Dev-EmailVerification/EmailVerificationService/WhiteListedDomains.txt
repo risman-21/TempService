@@ -19,3 +19,12 @@ zoho.eu
 amazonaws.com
 protonmail.ch
 fastmail.fm
+adobe.com
+integrate.com
+amazon.com
+cisco.com
+dell.com
+docusign.com
+oracle.com
+sap.com
+freshworks.com
