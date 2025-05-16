@@ -155,7 +155,7 @@ namespace EmailAddressVerificationAPI.Services
                 },
                 new ChecklistElementDTO
                 {
-                    Name = "IsDisposableDomain",
+                    Name = "IsNotDisposableDomain",
                     WeightageAllocated = 10,
                     IsVerified = (await IsDisposableDomain(domain)).ToString()
                 }
