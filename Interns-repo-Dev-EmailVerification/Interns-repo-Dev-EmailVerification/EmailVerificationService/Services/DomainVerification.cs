@@ -174,7 +174,7 @@ namespace EmailAddressVerificationAPI.Services
                 },
                 new ChecklistElementDTO
                 {
-                    Name = "ContainsVulgar",
+                    Name = "NotContainsVulgar",
                     WeightageAllocated = 10,
                     IsVerified = (await HasVulgarWords(userName)).ToString()
                 },
