@@ -66,11 +66,11 @@ namespace EmailAddressVerificationAPI.Services
                     }
                 }
 
-                EmailStatusCode result = EmailStatusCode.Invalid;
+                EmailStatusCode result = EmailStatusCode.Valid;
 
                 if (disposableDomains.Contains(domain.ToLower()))
                 {
-                    result = EmailStatusCode.Valid;
+                    result = EmailStatusCode.Invalid;
                 }
 
                 return Task.FromResult(result);
