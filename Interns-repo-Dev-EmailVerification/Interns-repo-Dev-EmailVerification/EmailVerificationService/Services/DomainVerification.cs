@@ -93,240 +93,149 @@ namespace EmailAddressVerificationAPI.Services
             }
         }
 
-        public async Task<ResponseDTO> VerifyEmailDomain(string emailAddress, int strictness)
+      public async Task<ResponseDTO> VerifyEmailDomain(string emailAddress, int strictness)
+{
+    try
+    {
+        bool low = strictness >= 0;
+        bool medium = strictness >= 1;
+        bool high = strictness >= 2;
+
+        ResponseDTO _responseDTO = new ResponseDTO(new List<ChecklistElementDTO>());
+        _responseDTO.EmailAddress = emailAddress;
+
+        var userName = emailAddress.Split('@').FirstOrDefault();
+        var domain = emailAddress.Split('@').LastOrDefault();
+        var domainParts = domain.Split('.');
+        string tld = domainParts[^1].ToLower();
+
+        List<EmailStatusCode> smtpVerificationResults = new();
+
+        if (low)
         {
-            try
+            var regexCheck = new ChecklistElementDTO
             {
-                bool low=false, medium=false, high=false;
+                Name = "IsValidRegex",
+                WeightageAllocated = 10,
+                IsVerified = IsValidRegex(emailAddress).ToString()
+            };
+            _responseDTO.ChecklistElements.Add(regexCheck);
+            regexCheck.ObtainedScore = (int)Enum.Parse(typeof(EmailStatusCode), regexCheck.IsVerified) == 200
+                ? regexCheck.WeightageAllocated : -regexCheck.WeightageAllocated;
+            _responseDTO.TotalScore += regexCheck.ObtainedScore;
 
-                if (strictness >=0)
-                {
-                    low = true;
-                }
-                if (strictness >= 1)
-                {
-                    medium = true;
-                }
-                if (strictness >= 2)
-                {
-                    high = true;
-                }
-
-                ResponseDTO _responseDTO = new ResponseDTO(new List<ChecklistElementDTO>());
-                _responseDTO.EmailAddress = emailAddress;
-
-                var userName = emailAddress.Split('@').FirstOrDefault();
-                var domain = emailAddress.Split('@').LastOrDefault();
-                var domainParts = domain.Split('.');
-                string tld = domainParts[^1].ToLower();
-
-                List<EmailStatusCode> smtpVerificationResults = new();
-
-                if (low)
-                {
-                    var regexCheck = new ChecklistElementDTO
-                    {
-                        Name = "IsValidRegex",
-                        WeightageAllocated = 10,
-                        IsVerified = IsValidRegex(emailAddress).ToString()
-                    };
-
-                    _responseDTO.ChecklistElements.Add(regexCheck);
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), regexCheck.IsVerified) == 200)
-                    {
-                        _responseDTO.ChecklistElements.LastOrDefault().ObtainedScore = regexCheck.WeightageAllocated;
-                        _responseDTO.TotalScore += regexCheck.WeightageAllocated;
-                    }
-                    else
-                    {
-                        return _responseDTO;
-                    }
-
-                    var tldCheck = new ChecklistElementDTO
-                    {
-                        Name = "IsRegisteredTLD",
-                        WeightageAllocated = 10,
-                        IsVerified = (await IsTldRegistered(tld)).ToString()
-                    };
-                    _responseDTO.ChecklistElements.Add(tldCheck);
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), tldCheck.IsVerified) == 200)
-                    {
-                        _responseDTO.ChecklistElements.LastOrDefault().ObtainedScore = tldCheck.WeightageAllocated;
-                        _responseDTO.TotalScore += tldCheck.ObtainedScore;
-                    }
-                    else
-                    {
-                        return _responseDTO;
-                    }
-
-
-                    smtpVerificationResults = await _smtpServerVerification.SmtpServerAsync(emailAddress, domain);
-
-                    var mxRecordsCheck = new ChecklistElementDTO
-                    {
-                        Name = "HasMxRecords",
-                        WeightageAllocated = 10,
-                        IsVerified = smtpVerificationResults[0].ToString(),
-                        ObtainedScore = (int)smtpVerificationResults[0] == 200 ? 10 : 0
-                    };
-                    _responseDTO.ChecklistElements.Add(mxRecordsCheck);
-
-                    _responseDTO.TotalScore += mxRecordsCheck.ObtainedScore;
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), mxRecordsCheck.IsVerified) == 400)
-                    {
-                        return _responseDTO;
-                    }
-
-
-                    var singleMxCheck = new ChecklistElementDTO
-                    {
-                        Name = "AnMxRecordVerified",
-                        WeightageAllocated = 10,
-                        IsVerified = smtpVerificationResults[1].ToString(),
-                        ObtainedScore = (int)smtpVerificationResults[1] == 200 ? 10 : 0
-                    };
-                    _responseDTO.ChecklistElements.Add(singleMxCheck);
-
-                    _responseDTO.TotalScore += singleMxCheck.ObtainedScore;
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), singleMxCheck.IsVerified) == 400)
-                    {
-                        return _responseDTO;
-                    }
-
-                    _responseDTO.Status = true;
-                }
-
-
-                if (medium)
-                {
-                    _responseDTO.Status = false;
-                    var spfCheck = new ChecklistElementDTO
-                    {
-                        Name = "HasSpfRecords",
-                        WeightageAllocated = 10,
-                        IsVerified = smtpVerificationResults[2].ToString(),
-                        ObtainedScore = (int)smtpVerificationResults[2] == 200 ? 10 : 0
-                    };
-                    _responseDTO.ChecklistElements.Add(spfCheck);
-
-                    _responseDTO.TotalScore += spfCheck.ObtainedScore;
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), spfCheck.IsVerified) == 400)
-                    {
-                        return _responseDTO;
-                    }
-
-
-
-                    var dmarkCheck = new ChecklistElementDTO
-                    {
-                        Name = "HasDmarcRecords",
-                        WeightageAllocated = 10,
-                        IsVerified = smtpVerificationResults[4].ToString(),
-                        ObtainedScore = (int)smtpVerificationResults[4] == 200 ? 10 : 0
-                    };
-
-                    _responseDTO.ChecklistElements.Add(dmarkCheck);
-
-                    _responseDTO.TotalScore += dmarkCheck.ObtainedScore;
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), dmarkCheck.IsVerified) == 400)
-                    {
-                        return _responseDTO;
-                    }
-
-                    var disposableDomainCheck = new ChecklistElementDTO
-                    {
-                        Name = "IsDisposableDomain",
-                        WeightageAllocated = 10,
-                        IsVerified = (await IsDisposableDomain(domain)).ToString()
-                    };
-
-                    _responseDTO.ChecklistElements.Add(disposableDomainCheck);
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), disposableDomainCheck.IsVerified) == 400)
-                    {
-                        _responseDTO.ChecklistElements.LastOrDefault().ObtainedScore = disposableDomainCheck.WeightageAllocated;
-                        _responseDTO.TotalScore += disposableDomainCheck.ObtainedScore;
-                    }
-                    else
-                    {
-                        return _responseDTO;
-                    }
-                    _responseDTO.Status = true;
-                }
-
-
-                if (high)
-                {
-                    _responseDTO.Status = false;
-                    var whiteListCheck = new ChecklistElementDTO
-                    {
-                        Name = "IsWhiteListed",
-                        WeightageAllocated = 10,
-                        IsVerified = (await IsDomainWhitelisted(domain)).ToString()
-                    };
-
-                    _responseDTO.ChecklistElements.Add(whiteListCheck);
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), whiteListCheck.IsVerified) == 200)
-                    {
-                        _responseDTO.ChecklistElements.LastOrDefault().ObtainedScore = whiteListCheck.WeightageAllocated;
-                        _responseDTO.TotalScore += whiteListCheck.ObtainedScore;
-                    }
-                    else
-                    {
-                        return _responseDTO;
-                    }
-
-                    var vulgarCheck = new ChecklistElementDTO
-                    {
-                        Name = "ContainsVulgar",
-                        WeightageAllocated = 10,
-                        IsVerified = (await HasVulgarWords(userName)).ToString()
-                    };
-                    _responseDTO.ChecklistElements.Add(vulgarCheck);
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), vulgarCheck.IsVerified) == 400)
-                    {
-                        _responseDTO.ChecklistElements.LastOrDefault().ObtainedScore = vulgarCheck.WeightageAllocated;
-                        _responseDTO.TotalScore += vulgarCheck.ObtainedScore;
-                    }
-                    else
-                    {
-                        return _responseDTO;
-                    }
-
-                    _responseDTO.Status = true;
-
-                    var dkimCheck = new ChecklistElementDTO
-                    {
-                        Name = "HasDkimRecords",
-                        WeightageAllocated = 10,
-                        IsVerified = smtpVerificationResults[3].ToString(),
-                        ObtainedScore = (int)smtpVerificationResults[3] == 200 ? 10 : 0
-                    };
-                    _responseDTO.ChecklistElements.Add(dkimCheck);
-
-                    _responseDTO.TotalScore += dkimCheck.ObtainedScore;
-
-                    if ((int)Enum.Parse(typeof(EmailStatusCode), dkimCheck.IsVerified) == 400)
-                    {
-                        return _responseDTO;
-                    }
-
-                }
-
-                return _responseDTO;
-            }
-            catch (Exception)
+            var tldCheck = new ChecklistElementDTO
             {
-                throw;
-            }
+                Name = "IsRegisteredTLD",
+                WeightageAllocated = 10,
+                IsVerified = (await IsTldRegistered(tld)).ToString()
+            };
+            _responseDTO.ChecklistElements.Add(tldCheck);
+            tldCheck.ObtainedScore = (int)Enum.Parse(typeof(EmailStatusCode), tldCheck.IsVerified) == 200
+                ? tldCheck.WeightageAllocated : -tldCheck.WeightageAllocated;
+            _responseDTO.TotalScore += tldCheck.ObtainedScore;
+
+            smtpVerificationResults = await _smtpServerVerification.SmtpServerAsync(emailAddress, domain);
+
+            var mxCheck = new ChecklistElementDTO
+            {
+                Name = "HasMxRecords",
+                WeightageAllocated = 10,
+                IsVerified = smtpVerificationResults[0].ToString()
+            };
+            mxCheck.ObtainedScore = (int)smtpVerificationResults[0] == 200 ? mxCheck.WeightageAllocated : -mxCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(mxCheck);
+            _responseDTO.TotalScore += mxCheck.ObtainedScore;
+
+            var singleMxCheck = new ChecklistElementDTO
+            {
+                Name = "AnMxRecordVerified",
+                WeightageAllocated = 10,
+                IsVerified = smtpVerificationResults[1].ToString()
+            };
+            singleMxCheck.ObtainedScore = (int)smtpVerificationResults[1] == 200 ? singleMxCheck.WeightageAllocated : -singleMxCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(singleMxCheck);
+            _responseDTO.TotalScore += singleMxCheck.ObtainedScore;
         }
+
+        if (medium)
+        {
+            var spfCheck = new ChecklistElementDTO
+            {
+                Name = "HasSpfRecords",
+                WeightageAllocated = 10,
+                IsVerified = smtpVerificationResults[2].ToString()
+            };
+            spfCheck.ObtainedScore = (int)smtpVerificationResults[2] == 200 ? spfCheck.WeightageAllocated : -spfCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(spfCheck);
+            _responseDTO.TotalScore += spfCheck.ObtainedScore;
+
+            var dmarcCheck = new ChecklistElementDTO
+            {
+                Name = "HasDmarcRecords",
+                WeightageAllocated = 10,
+                IsVerified = smtpVerificationResults[4].ToString()
+            };
+            dmarcCheck.ObtainedScore = (int)smtpVerificationResults[4] == 200 ? dmarcCheck.WeightageAllocated : -dmarcCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(dmarcCheck);
+            _responseDTO.TotalScore += dmarcCheck.ObtainedScore;
+
+            var disposableCheck = new ChecklistElementDTO
+            {
+                Name = "IsDisposableDomain",
+                WeightageAllocated = 10,
+                IsVerified = (await IsDisposableDomain(domain)).ToString()
+            };
+            disposableCheck.ObtainedScore = (int)Enum.Parse(typeof(EmailStatusCode), disposableCheck.IsVerified) == 400
+                ? disposableCheck.WeightageAllocated : -disposableCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(disposableCheck);
+            _responseDTO.TotalScore += disposableCheck.ObtainedScore;
+        }
+
+        if (high)
+        {
+            var whiteListCheck = new ChecklistElementDTO
+            {
+                Name = "IsWhiteListed",
+                WeightageAllocated = 10,
+                IsVerified = (await IsDomainWhitelisted(domain)).ToString()
+            };
+            whiteListCheck.ObtainedScore = (int)Enum.Parse(typeof(EmailStatusCode), whiteListCheck.IsVerified) == 200
+                ? whiteListCheck.WeightageAllocated : -whiteListCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(whiteListCheck);
+            _responseDTO.TotalScore += whiteListCheck.ObtainedScore;
+
+            var vulgarCheck = new ChecklistElementDTO
+            {
+                Name = "ContainsVulgar",
+                WeightageAllocated = 10,
+                IsVerified = (await HasVulgarWords(userName)).ToString()
+            };
+            vulgarCheck.ObtainedScore = (int)Enum.Parse(typeof(EmailStatusCode), vulgarCheck.IsVerified) == 400
+                ? vulgarCheck.WeightageAllocated : -vulgarCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(vulgarCheck);
+            _responseDTO.TotalScore += vulgarCheck.ObtainedScore;
+
+            var dkimCheck = new ChecklistElementDTO
+            {
+                Name = "HasDkimRecords",
+                WeightageAllocated = 10,
+                IsVerified = smtpVerificationResults[3].ToString()
+            };
+            dkimCheck.ObtainedScore = (int)smtpVerificationResults[3] == 200 ? dkimCheck.WeightageAllocated : -dkimCheck.WeightageAllocated;
+            _responseDTO.ChecklistElements.Add(dkimCheck);
+            _responseDTO.TotalScore += dkimCheck.ObtainedScore;
+        }
+
+        // Final status based on whether total score is positive
+        _responseDTO.Status = _responseDTO.TotalScore > 0;
+        return _responseDTO;
+    }
+    catch (Exception)
+    {
+        throw;
+    }
+}
+
     }
 }
