@@ -191,7 +191,7 @@ namespace EmailAddressVerificationAPI.Services
         foreach (var item in checklist)
         {
             var status = (EmailStatusCode)Enum.Parse(typeof(EmailStatusCode), item.IsVerified);
-            if (status == EmailStatusCode.Valid || status == EmailStatusCode.BadRequest)
+            if (status == EmailStatusCode.Valid)
             {
                 item.ObtainedScore = item.WeightageAllocated;
                 response.TotalScore += item.ObtainedScore;
