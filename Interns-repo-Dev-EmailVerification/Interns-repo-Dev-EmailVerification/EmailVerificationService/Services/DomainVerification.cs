@@ -228,7 +228,7 @@ namespace EmailAddressVerificationAPI.Services
         }
 
         // Final status based on whether total score is positive
-        _responseDTO.Status = _responseDTO.TotalScore > 0;
+        _responseDTO.Status = _responseDTO.TotalScore >=70;
         return _responseDTO;
     }
     catch (Exception)
